@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.6.14/quagga.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.12.3/JsBarcode.all.min.js"></script>
 <style>
   :root {
     --cream: #FAF3E7;
@@ -260,6 +261,19 @@
   .img-upload-preview { width: 70px; height: 70px; border-radius: 10px; background: #f2ece0; overflow: hidden; display:flex; align-items:center; justify-content:center; margin-top: 8px; }
   .img-upload-preview img { width: 100%; height: 100%; object-fit: cover; }
 
+  .size-check { display:inline-flex; align-items:center; gap:5px; background:white; border:2px solid var(--line); border-radius:999px; padding:6px 12px; font-size:12px; font-weight:600; margin:0; cursor:pointer; }
+  .size-check input { margin:0; }
+  .chip-remove-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .chip-remove-row .chip-x { background:none; border:none; cursor:pointer; font-weight:700; font-size:13px; line-height:1; padding:0; color:var(--navy); }
+  .stock-grid { width:100%; border-collapse:collapse; margin-top:10px; }
+  .stock-grid th, .stock-grid td { border:1px solid var(--line); padding:6px 8px; font-size:12px; text-align:center; }
+  .stock-grid th { background:var(--cream); }
+  .stock-grid input { width:60px; padding:6px; border-radius:8px; border:2px solid var(--line); text-align:center; }
+  .code-box { background:var(--cream); border-radius:10px; padding:10px 12px; font-family:monospace; font-weight:700; font-size:14px; letter-spacing:.03em; }
+  .sticker-copy { display:inline-block; padding:10px; border:1px dashed #ccc; margin:6px; page-break-inside: avoid; text-align:center; }
+  .sticker-copy .sticker-name { font-size:11px; font-weight:700; }
+  .sticker-copy .sticker-price { font-size:10px; color:#666; margin-bottom:4px; }
+
   table { width: 100%; border-collapse: collapse; background: white; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
   th, td { text-align: left; padding: 12px 14px; font-size: 13px; border-bottom: 1px solid var(--line); }
   th { background: var(--cream); text-transform: uppercase; font-size: 10px; letter-spacing: .05em; color: #8b8378; }
@@ -311,8 +325,9 @@
 
   @media print {
     body * { visibility: hidden; }
-    #receiptPrintArea, #receiptPrintArea * { visibility: visible; }
-    #receiptPrintArea { position: absolute; top: 0; left: 0; width: 100%; box-shadow: none; }
+    #receiptPrintArea, #receiptPrintArea *,
+    #stickerPrintArea, #stickerPrintArea * { visibility: visible; }
+    #receiptPrintArea, #stickerPrintArea { position: absolute; top: 0; left: 0; width: 100%; box-shadow: none; }
     .no-print { display: none !important; }
   }
   .toast {
@@ -403,21 +418,39 @@
               <option>Outerwear</option><option>Shoes</option><option>Sleepwear</option><option>Accessories</option>
             </select>
           </div>
-          <div class="field"><label>Age group</label>
-            <select id="f_age">
-              <option>0–6m</option><option>6–12m</option><option>1–2y</option><option>2–4y</option>
-              <option>4–6y</option><option>6–8y</option><option>8–10y</option><option>10–12y</option>
-            </select>
+          <div class="field"><label>Product code</label>
+            <div class="code-box" id="f_code">—</div>
           </div>
-          <div class="field"><label>Barcode</label>
+          <div class="field full">
+            <label>Sizes (tick all that apply)</label>
+            <div class="chip-row" id="sizeCheckboxes"></div>
+            <div style="display:flex; gap:6px; margin-top:4px;">
+              <input type="text" id="f_customSize" placeholder="Other size, e.g. XL">
+              <button type="button" class="btn btn-secondary btn-small" id="addCustomSizeBtn">Add</button>
+            </div>
+            <div class="chip-remove-row" id="sizeChipsRow"></div>
+          </div>
+          <div class="field full">
+            <label>Colors</label>
             <div style="display:flex; gap:6px;">
-              <input type="text" id="f_barcode" placeholder="Scan or type barcode" style="flex:1;">
-              <button type="button" class="btn btn-secondary btn-small" id="cameraScanFormBtn">📷</button>
+              <input type="text" id="f_colorInput" placeholder="e.g. Sky blue">
+              <button type="button" class="btn btn-secondary btn-small" id="addColorBtn">Add</button>
+            </div>
+            <div class="chip-remove-row" id="colorChipsRow"></div>
+          </div>
+          <div class="field full">
+            <label>Stock by size &amp; color — total: <span id="stockTotalDisplay">0</span></label>
+            <div id="stockGridContainer" style="overflow-x:auto;"></div>
+          </div>
+          <div class="field full">
+            <label>Barcode (auto-generated from product code)</label>
+            <div style="background:white; border:2px solid var(--line); border-radius:12px; padding:12px; text-align:center;">
+              <svg id="barcodePreview"></svg>
+              <div>
+                <button type="button" class="btn btn-secondary btn-small" id="printBarcodeFormBtn" style="margin-top:8px;">🏷️ Print sticker</button>
+              </div>
             </div>
           </div>
-          <div class="field"><label>Sizes available (comma separated)</label><input type="text" id="f_sizes" placeholder="2T, 3T, 4T"></div>
-          <div class="field"><label>Color</label><input type="text" id="f_color" placeholder="Sky blue"></div>
-          <div class="field"><label>Stock quantity</label><input type="number" id="f_stock" placeholder="12"></div>
           <div class="field"><label>Photo</label>
             <input type="file" accept="image/*" id="f_image">
             <div class="img-upload-preview" id="imgPreview"><span class="placeholder" style="font-size:22px;">📷</span></div>
@@ -506,6 +539,34 @@
     </div>
   </div>
 
+  <!-- Barcode sticker modal -->
+  <div class="overlay" id="stickerOverlay">
+    <div class="modal" style="max-width:380px;">
+      <button class="modal-close no-print" id="closeStickerModal">✕</button>
+      <div style="padding:20px;">
+        <div style="font-weight:700; margin-bottom:12px;">Barcode sticker</div>
+        <div id="stickerPrintArea" style="text-align:center;"></div>
+        <div class="no-print" style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:14px;">
+          <label style="font-size:12px; font-weight:600; margin:0;">Copies</label>
+          <input type="number" id="stickerCopies" value="1" min="1" style="width:60px; padding:6px; border-radius:8px; border:2px solid var(--line);">
+        </div>
+        <button class="btn btn-primary no-print" style="width:100%; margin-top:14px;" id="printStickerBtn">Print stickers</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Variant picker modal (for sales) -->
+  <div class="overlay" id="variantOverlay">
+    <div class="modal" style="max-width:380px;">
+      <button class="modal-close" id="closeVariantModal">✕</button>
+      <div style="padding:20px;">
+        <div style="font-weight:700; margin-bottom:2px;" id="variantProductName"></div>
+        <div style="font-size:12px; color:#9c9384; margin-bottom:12px;">This product has more than one size/color — choose which one was sold.</div>
+        <div id="variantList"></div>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <!-- Product detail modal -->
@@ -526,7 +587,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const AGE_ORDER = ["0–6m","6–12m","1–2y","2–4y","4–6y","6–8y","8–10y","10–12y"];
+const SIZE_OPTIONS = ["0–6m","6–12m","1Y","2Y","3Y","4Y","5Y","6Y","7Y","8Y","9Y","10Y","11Y","12Y"];
 const CATEGORIES = ["Tops","Bottoms","Dresses","Outerwear","Shoes","Sleepwear","Accessories"];
 
 // ---------------- Storage backend ----------------
@@ -552,15 +613,17 @@ async function uploadImage(file) {
 
 async function storageGet(key) {
   const res = await fetch(`${FIREBASE_URL}/${key}.json`);
+  if (!res.ok) throw new Error('Firebase request failed: ' + res.status);
   const data = await res.json();
   return data === null ? null : { key, value: data };
 }
 async function storageSet(key, value) {
-  await fetch(`${FIREBASE_URL}/${key}.json`, {
+  const res = await fetch(`${FIREBASE_URL}/${key}.json`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(value)
   });
+  if (!res.ok) throw new Error('Firebase request failed: ' + res.status);
   return { key, value };
 }
 
@@ -570,6 +633,122 @@ let activeCategory = "";
 let cart = [];
 let scanCallback = null;
 let invoicesCache = [];
+let formSizes = [];
+let formColors = [];
+let formVariants = {};
+let pendingCode = null;
+let currentStickerProduct = null;
+
+async function nextProductCode() {
+  let counter = 1;
+  try {
+    const res = await storageGet('product_counter');
+    counter = res && res.value ? Number(res.value) + 1 : 1;
+  } catch (e) { counter = 1; }
+  try { await storageSet('product_counter', String(counter)); } catch (e) {}
+  return 'TRV-' + String(counter).padStart(4, '0');
+}
+
+function renderBarcodePreview(code) {
+  if (typeof JsBarcode === 'undefined' || !code) return;
+  try {
+    JsBarcode('#barcodePreview', code, { format: 'CODE128', width: 2, height: 46, displayValue: true, fontSize: 13, margin: 6 });
+  } catch (e) {}
+}
+
+function variantKey(size, color) {
+  return size + '||' + color;
+}
+
+function buildVariants() {
+  const sizes = formSizes.length ? formSizes : ['One size'];
+  const colors = formColors.length ? formColors : ['—'];
+  const variants = {};
+  sizes.forEach(sz => colors.forEach(c => {
+    const key = variantKey(sz, c);
+    variants[key] = formVariants[key] || 0;
+  }));
+  return variants;
+}
+
+function updateStockTotal() {
+  const total = Object.values(formVariants).reduce((s, v) => s + (v || 0), 0);
+  const el = document.getElementById('stockTotalDisplay');
+  if (el) el.textContent = total;
+}
+
+function renderStockGrid() {
+  const container = document.getElementById('stockGridContainer');
+  if (!container) return;
+  const sizes = formSizes.length ? formSizes : ['One size'];
+  const colors = formColors.length ? formColors : ['—'];
+  let html = '<table class="stock-grid"><thead><tr><th>Size \\ Color</th>' + colors.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+  sizes.forEach(sz => {
+    html += `<tr><td>${sz}</td>`;
+    colors.forEach(c => {
+      const key = variantKey(sz, c);
+      const val = formVariants[key] || 0;
+      html += `<td><input type="number" min="0" class="variant-qty" data-key="${key}" value="${val}"></td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+  container.querySelectorAll('.variant-qty').forEach(inp => {
+    inp.addEventListener('input', () => {
+      formVariants[inp.dataset.key] = parseInt(inp.value) || 0;
+      updateStockTotal();
+    });
+  });
+  updateStockTotal();
+}
+
+function renderSizeCheckboxes() {
+  const box = document.getElementById('sizeCheckboxes');
+  if (!box) return;
+  box.innerHTML = SIZE_OPTIONS.map(s => `
+    <label class="size-check"><input type="checkbox" value="${s}" ${formSizes.includes(s) ? 'checked' : ''}> ${s}</label>
+  `).join('');
+  box.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) { if (!formSizes.includes(cb.value)) formSizes.push(cb.value); }
+      else { formSizes = formSizes.filter(s => s !== cb.value); }
+      renderSizeChipsSelected();
+      renderStockGrid();
+    });
+  });
+}
+
+function renderSizeChipsSelected() {
+  const row = document.getElementById('sizeChipsRow');
+  if (!row) return;
+  row.innerHTML = formSizes.length
+    ? formSizes.map((s, i) => `<span class="chip">${s} <button type="button" class="chip-x" data-removesize="${i}">×</button></span>`).join('')
+    : '<span style="font-size:12px; color:#9c9384;">No sizes selected — will show as "One size".</span>';
+  row.querySelectorAll('[data-removesize]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      formSizes.splice(btn.dataset.removesize, 1);
+      renderSizeCheckboxes();
+      renderSizeChipsSelected();
+      renderStockGrid();
+    });
+  });
+}
+
+function renderColorChips() {
+  const row = document.getElementById('colorChipsRow');
+  if (!row) return;
+  row.innerHTML = formColors.length
+    ? formColors.map((c, i) => `<span class="chip">${c} <button type="button" class="chip-x" data-removecolor="${i}">×</button></span>`).join('')
+    : '<span style="font-size:12px; color:#9c9384;">No colors added — will show as "One color".</span>';
+  row.querySelectorAll('[data-removecolor]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      formColors.splice(btn.dataset.removecolor, 1);
+      renderColorChips();
+      renderStockGrid();
+    });
+  });
+}
 
 function money(n) {
   n = Number(n) || 0;
@@ -609,7 +788,7 @@ function stockBadge(stock) {
 // ---------------- Customer view ----------------
 function populateAgeFilter() {
   const sel = document.getElementById('ageFilter');
-  sel.innerHTML = '<option value="">All ages</option>' + AGE_ORDER.map(a => `<option value="${a}">${a}</option>`).join('');
+  sel.innerHTML = '<option value="">All sizes</option>' + SIZE_OPTIONS.map(a => `<option value="${a}">${a}</option>`).join('');
 }
 
 function renderCategoryChips() {
@@ -632,11 +811,11 @@ function renderCategoryChips() {
 function renderCustomerGrid() {
   const grid = document.getElementById('productGrid');
   const search = document.getElementById('searchInput').value.trim().toLowerCase();
-  const age = document.getElementById('ageFilter').value;
+  const size = document.getElementById('ageFilter').value;
 
   const filtered = products.filter(p => {
     if (activeCategory && p.category !== activeCategory) return false;
-    if (age && p.age !== age) return false;
+    if (size && !(p.sizes || []).includes(size)) return false;
     if (search && !(p.name.toLowerCase().includes(search) || (p.description||"").toLowerCase().includes(search))) return false;
     return true;
   });
@@ -668,17 +847,11 @@ function openDetail(id) {
   document.getElementById('detailPrice').textContent = money(p.price);
   document.getElementById('detailDesc').textContent = p.description || "";
   document.getElementById('detailBadge').innerHTML = stockBadge(p.stock);
-  const sizes = (p.sizes || "").split(',').map(s => s.trim()).filter(Boolean);
-  let meta = `<span class="meta-pill">${p.category}</span><span class="meta-pill">${p.age}</span>`;
-  if (p.color) meta += `<span class="meta-pill"><span class="swatch" style="background:${cssColor(p.color)}"></span>${p.color}</span>`;
-  sizes.forEach(s => meta += `<span class="meta-pill">${s}</span>`);
+  let meta = `<span class="meta-pill">${p.category}</span>`;
+  (p.sizes || []).forEach(s => meta += `<span class="meta-pill">${s}</span>`);
+  (p.colors || []).forEach(c => meta += `<span class="meta-pill">${c}</span>`);
   document.getElementById('detailMeta').innerHTML = meta;
   document.getElementById('detailOverlay').classList.add('show');
-}
-
-function cssColor(name) {
-  // best-effort: browsers resolve common color names natively; fallback to a neutral swatch
-  return name.replace(/[^a-zA-Z]/g, '') || '#ccc';
 }
 
 document.getElementById('closeDetail').addEventListener('click', () => {
@@ -694,32 +867,48 @@ document.getElementById('ageFilter').addEventListener('change', renderCustomerGr
 let adminUnlocked = false;
 
 async function getPin() {
-  try {
-    const res = await storageGet('admin_pin');
-    return res ? res.value : null;
-  } catch (e) { return null; }
+  const res = await storageGet('admin_pin');
+  return res ? res.value : null;
 }
 
 async function setupOrCheckPin() {
-  const pin = await getPin();
   const title = document.getElementById('pinTitle');
   const note = document.getElementById('pinNote');
-  if (!pin) {
-    title.textContent = "Create a staff PIN";
-    note.textContent = "Set a PIN once — you'll use it every time you manage inventory.";
-  } else {
+  try {
+    const pin = await getPin();
+    if (!pin) {
+      title.textContent = "Create a staff PIN";
+      note.textContent = "Set a PIN once — you'll use it every time you manage inventory.";
+    } else {
+      title.textContent = "Staff login";
+      note.textContent = "";
+    }
+  } catch (e) {
     title.textContent = "Staff login";
-    note.textContent = "";
+    note.textContent = "⚠️ Can't reach the database — check your Firebase URL and rules.";
   }
 }
 
 document.getElementById('pinSubmit').addEventListener('click', async () => {
   const entered = document.getElementById('pinInput').value.trim();
   if (!entered) return;
-  const existing = await getPin();
+
+  let existing;
+  try {
+    existing = await getPin();
+  } catch (e) {
+    showToast("Can't reach the database — check your Firebase setup");
+    return;
+  }
+
   if (!existing) {
     if (entered.length < 4) { showToast("Use at least 4 digits"); return; }
-    await storageSet('admin_pin', entered);
+    try {
+      await storageSet('admin_pin', entered);
+    } catch (e) {
+      showToast("Couldn't save the PIN — check your Firebase setup");
+      return;
+    }
     unlockAdmin();
   } else if (entered === existing) {
     unlockAdmin();
@@ -757,9 +946,11 @@ function renderCart() {
   document.getElementById('cartEmptyState').style.display = cart.length ? 'none' : 'block';
   document.getElementById('cartTable').style.display = cart.length ? 'table' : 'none';
 
-  body.innerHTML = cart.map((item, idx) => `
+  body.innerHTML = cart.map((item, idx) => {
+    const variantLabel = [item.size !== 'One size' ? item.size : null, item.color !== '—' ? item.color : null].filter(Boolean).join(' · ');
+    return `
     <tr>
-      <td>${item.name}</td>
+      <td>${item.name}${variantLabel ? `<div style="font-size:11px; color:#9c9384;">${variantLabel}</div>` : ''}</td>
       <td>
         <div class="qty-controls">
           <button data-qtyminus="${idx}">−</button>
@@ -771,7 +962,8 @@ function renderCart() {
       <td>${money(item.price * item.qty)}</td>
       <td><button class="btn btn-danger btn-small" data-remove="${idx}">Remove</button></td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
   body.querySelectorAll('[data-qtyplus]').forEach(b => b.addEventListener('click', () => {
     cart[b.dataset.qtyplus].qty += 1; renderCart();
@@ -793,16 +985,59 @@ function renderCart() {
   document.getElementById('cartTotal').textContent = money(total);
 }
 
+function addVariantToCart(p, size, color) {
+  const lineKey = p.id + '||' + size + '||' + color;
+  const existing = cart.find(c => c.lineKey === lineKey);
+  if (existing) { existing.qty += 1; }
+  else { cart.push({ lineKey, id: p.id, name: p.name, price: p.price, qty: 1, size, color }); }
+  renderCart();
+  const label = [size !== 'One size' ? size : null, color !== '—' ? color : null].filter(Boolean).join(' · ');
+  showToast(p.name + (label ? ' (' + label + ')' : '') + ' added');
+}
+
+function openVariantPicker(p) {
+  document.getElementById('variantProductName').textContent = p.name;
+  const list = document.getElementById('variantList');
+  const keys = Object.keys(p.variants || {}).filter(k => (p.variants[k] || 0) > 0);
+  list.innerHTML = keys.map(k => {
+    const [size, color] = k.split('||');
+    const qty = p.variants[k];
+    const label = [size !== 'One size' ? size : null, color !== '—' ? color : null].filter(Boolean).join(' · ') || 'Default';
+    return `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--line);">
+      <div><strong>${label}</strong> <span style="color:#9c9384; font-size:12px;">(${qty} left)</span></div>
+      <button class="btn btn-secondary btn-small" data-size="${size}" data-color="${color}">Add</button>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('[data-size]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      addVariantToCart(p, btn.dataset.size, btn.dataset.color);
+      document.getElementById('variantOverlay').classList.remove('show');
+    });
+  });
+  document.getElementById('variantOverlay').classList.add('show');
+}
+
 function addToCartByBarcode(code) {
   code = (code || '').trim();
   if (!code) return;
-  const p = products.find(x => (x.barcode || '').trim() === code);
+  const p = products.find(x => x.code === code || (x.barcode || '').trim() === code);
   if (!p) { showToast('No product with that barcode'); return; }
-  const existing = cart.find(c => c.id === p.id);
-  if (existing) { existing.qty += 1; } else { cart.push({ id: p.id, name: p.name, price: p.price, qty: 1, barcode: p.barcode }); }
-  renderCart();
-  showToast(p.name + ' added');
+  const variantKeys = Object.keys(p.variants || {}).filter(k => (p.variants[k] || 0) > 0);
+  if (variantKeys.length === 0) { showToast(p.name + ' is out of stock'); return; }
+  if (variantKeys.length === 1) {
+    const [size, color] = variantKeys[0].split('||');
+    addVariantToCart(p, size, color);
+  } else {
+    openVariantPicker(p);
+  }
 }
+
+document.getElementById('closeVariantModal').addEventListener('click', () => {
+  document.getElementById('variantOverlay').classList.remove('show');
+});
+document.getElementById('variantOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'variantOverlay') e.currentTarget.classList.remove('show');
+});
 
 document.getElementById('scanInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
@@ -817,7 +1052,13 @@ document.getElementById('completeSaleBtn').addEventListener('click', async () =>
   if (!cart.length) { showToast('Cart is empty'); return; }
   cart.forEach(item => {
     const p = products.find(x => x.id === item.id);
-    if (p) p.stock = Math.max(0, (p.stock || 0) - item.qty);
+    if (p && p.variants) {
+      const key = item.size + '||' + item.color;
+      if (p.variants[key] !== undefined) {
+        p.variants[key] = Math.max(0, p.variants[key] - item.qty);
+      }
+      p.stock = Object.values(p.variants).reduce((s, v) => s + v, 0);
+    }
   });
   await saveProducts();
   renderAdminTable();
@@ -829,7 +1070,10 @@ document.getElementById('completeSaleBtn').addEventListener('click', async () =>
   const invoice = {
     id: 'INV-' + Date.now().toString().slice(-8),
     date: new Date().toISOString(),
-    items: cart.map(i => ({ name: i.name, barcode: i.barcode, qty: i.qty, price: i.price })),
+    items: cart.map(i => ({
+      name: i.name + ([i.size !== 'One size' ? i.size : null, i.color !== '—' ? i.color : null].filter(Boolean).length ? ' (' + [i.size !== 'One size' ? i.size : null, i.color !== '—' ? i.color : null].filter(Boolean).join(' · ') + ')' : ''),
+      qty: i.qty, price: i.price
+    })),
     subtotal, taxRate, tax, total
   };
 
@@ -931,9 +1175,6 @@ function closeCameraScan() {
 
 document.getElementById('closeScanModal').addEventListener('click', closeCameraScan);
 document.getElementById('cameraScanSaleBtn').addEventListener('click', () => openCameraScan(code => addToCartByBarcode(code)));
-document.getElementById('cameraScanFormBtn').addEventListener('click', () => openCameraScan(code => {
-  document.getElementById('f_barcode').value = code;
-}));
 
 document.getElementById('staffToggleBtn').addEventListener('click', async () => {
   document.getElementById('customerWrap').classList.add('hide');
@@ -959,12 +1200,13 @@ function renderAdminTable() {
   body.innerHTML = products.map(p => `
     <tr>
       <td class="row-img">${p.image ? `<img src="${p.image}">` : '<div class="placeholder"></div>'}</td>
-      <td>${p.name}</td>
+      <td>${p.name}<div style="font-size:11px; color:#9c9384; font-family:monospace;">${p.code || ''}</div></td>
       <td>${p.category}</td>
       <td>${money(p.price)}</td>
       <td>${p.stock}</td>
       <td>
         <div class="row-actions">
+          <button class="btn btn-secondary btn-small" data-barcode="${p.id}">🏷️</button>
           <button class="btn btn-secondary btn-small" data-edit="${p.id}">Edit</button>
           <button class="btn btn-danger btn-small" data-del="${p.id}">Delete</button>
         </div>
@@ -974,9 +1216,13 @@ function renderAdminTable() {
 
   body.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => openForm(btn.dataset.edit)));
   body.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', () => deleteProduct(btn.dataset.del)));
+  body.querySelectorAll('[data-barcode]').forEach(btn => btn.addEventListener('click', () => {
+    const p = products.find(x => x.id === btn.dataset.barcode);
+    if (p) openStickerModal(p);
+  }));
 }
 
-function openForm(id) {
+async function openForm(id) {
   editingId = id || null;
   const form = document.getElementById('productForm');
   form.classList.add('show');
@@ -987,22 +1233,66 @@ function openForm(id) {
     document.getElementById('f_name').value = p.name;
     document.getElementById('f_price').value = p.price;
     document.getElementById('f_category').value = p.category;
-    document.getElementById('f_age').value = p.age;
-    document.getElementById('f_sizes').value = p.sizes || "";
-    document.getElementById('f_color').value = p.color || "";
-    document.getElementById('f_stock').value = p.stock;
     document.getElementById('f_desc').value = p.description || "";
-    document.getElementById('f_barcode').value = p.barcode || "";
     document.getElementById('imgPreview').innerHTML = p.image ? `<img src="${p.image}">` : '<span class="placeholder" style="font-size:22px;">📷</span>';
     pendingImage = p.image || null;
+    pendingCode = p.code || null;
+    formSizes = [...(p.sizes || [])];
+    formColors = [...(p.colors || [])];
+    formVariants = { ...(p.variants || {}) };
   } else {
-    ['f_name','f_price','f_sizes','f_color','f_stock','f_desc','f_barcode'].forEach(id2 => document.getElementById(id2).value = '');
+    ['f_name', 'f_price', 'f_desc'].forEach(id2 => document.getElementById(id2).value = '');
     document.getElementById('f_category').value = CATEGORIES[0];
-    document.getElementById('f_age').value = AGE_ORDER[0];
     document.getElementById('imgPreview').innerHTML = '<span class="placeholder" style="font-size:22px;">📷</span>';
     pendingImage = null;
+    formSizes = [];
+    formColors = [];
+    formVariants = {};
+    document.getElementById('f_code').textContent = 'Generating…';
+    try {
+      pendingCode = await nextProductCode();
+    } catch (e) {
+      pendingCode = null;
+      showToast("Couldn't generate a product code — check your Firebase setup");
+    }
   }
+
+  document.getElementById('f_code').textContent = pendingCode || '—';
+  renderBarcodePreview(pendingCode);
+  renderSizeCheckboxes();
+  renderSizeChipsSelected();
+  renderColorChips();
+  renderStockGrid();
 }
+
+document.getElementById('addCustomSizeBtn').addEventListener('click', () => {
+  const input = document.getElementById('f_customSize');
+  const val = input.value.trim();
+  if (val && !formSizes.includes(val)) {
+    formSizes.push(val);
+    input.value = '';
+    renderSizeChipsSelected();
+    renderStockGrid();
+  }
+});
+document.getElementById('addColorBtn').addEventListener('click', () => {
+  const input = document.getElementById('f_colorInput');
+  const val = input.value.trim();
+  if (val && !formColors.includes(val)) {
+    formColors.push(val);
+    input.value = '';
+    renderColorChips();
+    renderStockGrid();
+  }
+});
+document.getElementById('printBarcodeFormBtn').addEventListener('click', () => {
+  if (!pendingCode) { showToast("No product code yet"); return; }
+  openStickerModal({
+    name: document.getElementById('f_name').value.trim() || 'Untitled product',
+    price: parseFloat(document.getElementById('f_price').value) || 0,
+    code: pendingCode
+  });
+});
 
 document.getElementById('addProductBtn').addEventListener('click', () => openForm(null));
 document.getElementById('cancelFormBtn').addEventListener('click', () => {
@@ -1027,18 +1317,23 @@ document.getElementById('saveProductBtn').addEventListener('click', async () => 
   const name = document.getElementById('f_name').value.trim();
   const price = parseFloat(document.getElementById('f_price').value);
   if (!name || isNaN(price)) { showToast("Add a name and price"); return; }
+  if (!pendingCode) { showToast("No product code — check your Firebase setup and reopen this form"); return; }
+
+  const variants = buildVariants();
+  const stock = Object.values(variants).reduce((s, v) => s + v, 0);
 
   const data = {
     id: editingId || ('p_' + Date.now()),
+    code: pendingCode,
+    barcode: pendingCode,
     name,
     price,
     category: document.getElementById('f_category').value,
-    age: document.getElementById('f_age').value,
-    sizes: document.getElementById('f_sizes').value.trim(),
-    color: document.getElementById('f_color').value.trim(),
-    stock: parseInt(document.getElementById('f_stock').value) || 0,
+    sizes: [...formSizes],
+    colors: [...formColors],
+    variants,
+    stock,
     description: document.getElementById('f_desc').value.trim(),
-    barcode: document.getElementById('f_barcode').value.trim(),
     image: pendingImage
   };
 
@@ -1061,6 +1356,45 @@ async function deleteProduct(id) {
   renderAdminTable();
   showToast("Product deleted");
 }
+
+// ---------------- Barcode sticker printing ----------------
+function openStickerModal(product) {
+  currentStickerProduct = product;
+  document.getElementById('stickerCopies').value = 1;
+  renderStickerSheet();
+  document.getElementById('stickerOverlay').classList.add('show');
+}
+
+function renderStickerSheet() {
+  if (!currentStickerProduct) return;
+  const copies = Math.max(1, parseInt(document.getElementById('stickerCopies').value) || 1);
+  const area = document.getElementById('stickerPrintArea');
+  let html = '';
+  for (let i = 0; i < copies; i++) {
+    html += `<div class="sticker-copy">
+      <div class="sticker-name">${currentStickerProduct.name}</div>
+      <div class="sticker-price">${money(currentStickerProduct.price)}</div>
+      <svg class="sticker-barcode-${i}"></svg>
+    </div>`;
+  }
+  area.innerHTML = html;
+  if (typeof JsBarcode !== 'undefined') {
+    for (let i = 0; i < copies; i++) {
+      try {
+        JsBarcode(area.querySelector('.sticker-barcode-' + i), currentStickerProduct.code, { format: 'CODE128', width: 1.6, height: 36, displayValue: true, fontSize: 10, margin: 4 });
+      } catch (e) {}
+    }
+  }
+}
+
+document.getElementById('stickerCopies').addEventListener('input', renderStickerSheet);
+document.getElementById('printStickerBtn').addEventListener('click', () => { renderStickerSheet(); window.print(); });
+document.getElementById('closeStickerModal').addEventListener('click', () => {
+  document.getElementById('stickerOverlay').classList.remove('show');
+});
+document.getElementById('stickerOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'stickerOverlay') e.currentTarget.classList.remove('show');
+});
 
 // ---------------- Init ----------------
 (async function init() {
