@@ -274,6 +274,18 @@
   .sticker-copy .sticker-name { font-size:11px; font-weight:700; }
   .sticker-copy .sticker-price { font-size:10px; color:#666; margin-bottom:4px; }
 
+  #bulkPrintArea { position: fixed; top: -99999px; left: -99999px; }
+  .sheet-page { page-break-after: always; }
+  .sheet-page:last-child { page-break-after: auto; }
+  .label-cell {
+    box-sizing: border-box;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    overflow: hidden; text-align: center;
+  }
+  .label-cell .sticker-name { font-size: 8px; font-weight: 700; line-height: 1.1; }
+  .label-cell .sticker-price { font-size: 7px; color: #333; }
+  .label-cell svg { max-width: 100%; }
+
   table { width: 100%; border-collapse: collapse; background: white; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
   th, td { text-align: left; padding: 12px 14px; font-size: 13px; border-bottom: 1px solid var(--line); }
   th { background: var(--cream); text-transform: uppercase; font-size: 10px; letter-spacing: .05em; color: #8b8378; }
@@ -326,8 +338,10 @@
   @media print {
     body * { visibility: hidden; }
     #receiptPrintArea, #receiptPrintArea *,
-    #stickerPrintArea, #stickerPrintArea * { visibility: visible; }
+    #stickerPrintArea, #stickerPrintArea *,
+    #bulkPrintArea, #bulkPrintArea * { visibility: visible; }
     #receiptPrintArea, #stickerPrintArea { position: absolute; top: 0; left: 0; width: 100%; box-shadow: none; }
+    #bulkPrintArea { position: absolute !important; top: 0 !important; left: 0 !important; }
     .no-print { display: none !important; }
   }
   .toast {
@@ -400,6 +414,7 @@
         <button class="chip active" data-tab="inventoryPanel">Inventory</button>
         <button class="chip" data-tab="salesPanel">New sale</button>
         <button class="chip" data-tab="invoicesPanel">Invoices</button>
+        <button class="chip" data-tab="barcodesPanel">Barcode sheet</button>
       </div>
 
       <div class="tab-panel" id="inventoryPanel">
@@ -510,6 +525,43 @@
         </div>
       </div>
 
+      <div class="tab-panel" id="barcodesPanel" style="display:none;">
+        <div style="background:white; border-radius:var(--radius); box-shadow:var(--shadow); padding:16px; margin-bottom:16px;">
+          <div style="font-weight:700; font-size:14px; margin-bottom:10px;">Sheet layout</div>
+          <div class="form-grid" style="grid-template-columns:repeat(4, 1fr);">
+            <div class="field"><label>Columns</label><input type="number" id="sheetCols" value="4" min="1"></div>
+            <div class="field"><label>Rows</label><input type="number" id="sheetRows" value="14" min="1"></div>
+            <div class="field"><label>Label width (mm)</label><input type="number" id="labelWidth" value="48.5"></div>
+            <div class="field"><label>Label height (mm)</label><input type="number" id="labelHeight" value="19.8"></div>
+          </div>
+          <div class="form-grid" style="grid-template-columns:repeat(2, 1fr); margin-top:0;">
+            <div class="field"><label>Page margin (mm)</label><input type="number" id="sheetMargin" value="8.5"></div>
+            <div class="field"><label>Gap between labels (mm)</label><input type="number" id="sheetGap" value="0"></div>
+          </div>
+          <div style="font-size:12px; color:#9c9384; margin-top:6px;">Match these to your label sheet's spec (e.g. 7 × 8 = 56 per sheet). Print a single test sheet first before running a full batch.</div>
+        </div>
+
+        <div style="text-align:right; margin-bottom:10px;">
+          <button class="btn btn-secondary btn-small" id="autofillStockBtn">Fill copies from current stock</button>
+        </div>
+
+        <table id="bulkBarcodeTable">
+          <thead><tr><th></th><th>Product</th><th>Code</th><th>Stock</th><th>Copies to print</th></tr></thead>
+          <tbody id="bulkBarcodeBody"></tbody>
+        </table>
+        <div class="empty-state" id="bulkEmptyState" style="display:none;">
+          <div class="display" style="font-size:16px;">No products yet</div>
+          <div>Add products in the Inventory tab first.</div>
+        </div>
+
+        <div class="cart-summary" style="margin-top:16px;">
+          <div class="cart-summary-row"><span>Total barcodes queued</span><span id="bulkTotalCount">0</span></div>
+          <div class="cart-summary-row"><span>Sheets needed (<span id="perSheetLabel">56</span>/sheet)</span><span id="bulkSheetsNeeded">0</span></div>
+          <div class="cart-summary-row total"><span>Empty slots on last sheet</span><span id="bulkEmptySlots">0</span></div>
+          <button class="btn btn-primary" id="printBulkBtn" style="width:100%; margin-top:12px;">🖨️ Print barcode sheet(s)</button>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -566,6 +618,8 @@
       </div>
     </div>
   </div>
+
+  <div id="bulkPrintArea"></div>
 
 </main>
 
@@ -636,6 +690,7 @@ let formColors = [];
 let formVariants = {};
 let pendingCode = null;
 let currentStickerProduct = null;
+let bulkCopies = {};
 
 async function nextProductCode() {
   let counter = 1;
@@ -934,6 +989,9 @@ document.querySelectorAll('#adminTabs .chip').forEach(btn => {
     document.getElementById(btn.dataset.tab).style.display = 'block';
     if (btn.dataset.tab === 'salesPanel') {
       setTimeout(() => document.getElementById('scanInput').focus(), 50);
+    }
+    if (btn.dataset.tab === 'barcodesPanel') {
+      renderBulkBarcodeTable();
     }
   });
 });
@@ -1409,6 +1467,102 @@ document.getElementById('closeStickerModal').addEventListener('click', () => {
 });
 document.getElementById('stickerOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'stickerOverlay') e.currentTarget.classList.remove('show');
+});
+
+// ---------------- Bulk barcode sheet printing ----------------
+function renderBulkBarcodeTable() {
+  const body = document.getElementById('bulkBarcodeBody');
+  document.getElementById('bulkEmptyState').style.display = products.length ? 'none' : 'block';
+  document.getElementById('bulkBarcodeTable').style.display = products.length ? 'table' : 'none';
+
+  body.innerHTML = products.map(p => `
+    <tr>
+      <td class="row-img">${p.image ? `<img src="${p.image}">` : '<div class="placeholder"></div>'}</td>
+      <td>${p.name}</td>
+      <td style="font-family:monospace;">${p.code || ''}</td>
+      <td>${p.stock}</td>
+      <td><input type="number" min="0" class="bulk-copies" data-id="${p.id}" value="${bulkCopies[p.id] || 0}" style="width:70px;"></td>
+    </tr>
+  `).join('');
+
+  body.querySelectorAll('.bulk-copies').forEach(inp => {
+    inp.addEventListener('input', () => {
+      bulkCopies[inp.dataset.id] = Math.max(0, parseInt(inp.value) || 0);
+      updateBulkSummary();
+    });
+  });
+  updateBulkSummary();
+}
+
+document.getElementById('autofillStockBtn').addEventListener('click', () => {
+  products.forEach(p => { bulkCopies[p.id] = p.stock || 0; });
+  renderBulkBarcodeTable();
+});
+
+function sheetConfig() {
+  return {
+    cols: Math.max(1, parseInt(document.getElementById('sheetCols').value) || 4),
+    rows: Math.max(1, parseInt(document.getElementById('sheetRows').value) || 14),
+    labelWidth: parseFloat(document.getElementById('labelWidth').value) || 48.5,
+    labelHeight: parseFloat(document.getElementById('labelHeight').value) || 19.8,
+    margin: parseFloat(document.getElementById('sheetMargin').value) || 8.5,
+    gap: parseFloat(document.getElementById('sheetGap').value) || 0
+  };
+}
+
+function buildBulkQueue() {
+  const queue = [];
+  products.forEach(p => {
+    const copies = bulkCopies[p.id] || 0;
+    for (let i = 0; i < copies; i++) queue.push(p);
+  });
+  return queue;
+}
+
+function updateBulkSummary() {
+  const cfg = sheetConfig();
+  const perSheet = cfg.cols * cfg.rows;
+  const total = buildBulkQueue().length;
+  const sheets = total ? Math.ceil(total / perSheet) : 0;
+  const empty = sheets ? (sheets * perSheet - total) : 0;
+  document.getElementById('perSheetLabel').textContent = perSheet;
+  document.getElementById('bulkTotalCount').textContent = total;
+  document.getElementById('bulkSheetsNeeded').textContent = sheets;
+  document.getElementById('bulkEmptySlots').textContent = empty;
+}
+
+['sheetCols', 'sheetRows', 'labelWidth', 'labelHeight', 'sheetMargin', 'sheetGap'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateBulkSummary);
+});
+
+document.getElementById('printBulkBtn').addEventListener('click', () => {
+  const queue = buildBulkQueue();
+  if (!queue.length) { showToast('Add copies for at least one product'); return; }
+  const cfg = sheetConfig();
+  const perSheet = cfg.cols * cfg.rows;
+  const area = document.getElementById('bulkPrintArea');
+  let html = '';
+
+  for (let start = 0; start < queue.length; start += perSheet) {
+    const pageItems = queue.slice(start, start + perSheet);
+    html += `<div class="sheet-page" style="padding:${cfg.margin}mm; display:grid; grid-template-columns:repeat(${cfg.cols}, ${cfg.labelWidth}mm); grid-template-rows:repeat(${cfg.rows}, ${cfg.labelHeight}mm); gap:${cfg.gap}mm;">`;
+    pageItems.forEach((p, i) => {
+      const idx = start + i;
+      html += `<div class="label-cell"><div class="sticker-name">${p.name}</div><div class="sticker-price">${money(p.price)}</div><svg class="bulk-barcode-${idx}"></svg></div>`;
+    });
+    html += `</div>`;
+  }
+  area.innerHTML = html;
+
+  if (typeof JsBarcode !== 'undefined') {
+    queue.forEach((p, idx) => {
+      try {
+        JsBarcode(area.querySelector('.bulk-barcode-' + idx), p.code, { format: 'CODE128', width: 1.2, height: 22, displayValue: true, fontSize: 7, margin: 2 });
+      } catch (e) {}
+    });
+  }
+
+  window.print();
 });
 
 // ---------------- Init ----------------
