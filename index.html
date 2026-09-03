@@ -347,7 +347,7 @@
 <body>
 
 <div id="setupBanner" style="display:none; background:#FFEDD5; color:#7C2D12; text-align:center; padding:10px 16px; font-size:13px; font-weight:600;">
-  ⚠️ Storage isn't connected yet — open the file and set <code>FIREBASE_URL</code> and <code>FIREBASE_STORAGE_BUCKET</code> near the top of the script.
+  ⚠️ Storage isn't connected yet — open the file and set <code>FIREBASE_URL</code>, <code>CLOUDINARY_CLOUD_NAME</code>, and <code>CLOUDINARY_UPLOAD_PRESET</code> near the top of the script.
 </div>
 <header>
   <div class="brand">
@@ -594,21 +594,19 @@ const CATEGORIES = ["Tops","Bottoms","Dresses","Outerwear","Shoes","Sleepwear","
 // Replace this with your Firebase Realtime Database URL (see setup instructions).
 // It looks like: https://your-project-id-default-rtdb.firebaseio.com
 const FIREBASE_URL = "https://trouve-535fb-default-rtdb.firebaseio.com";
-// Replace this with your Firebase Storage bucket name.
-// It looks like: your-project-id.appspot.com
-const FIREBASE_STORAGE_BUCKET = "trouve-535fb.appspot.com";
+// Replace these with your Cloudinary cloud name and unsigned upload preset (see setup instructions).
+const CLOUDINARY_CLOUD_NAME = "etltq4mi";
+const CLOUDINARY_UPLOAD_PRESET = "Trouve";
 
 async function uploadImage(file) {
-  const path = `product-images/${Date.now()}_${file.name}`.replace(/\s+/g, '_');
-  const url = `https://firebasestorage.googleapis.com/v0/b/${FIREBASE_STORAGE_BUCKET}/o?uploadType=media&name=${encodeURIComponent(path)}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': file.type },
-    body: file
-  });
+  const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  const res = await fetch(url, { method: 'POST', body: formData });
   if (!res.ok) throw new Error('Upload failed');
   const data = await res.json();
-  return `https://firebasestorage.googleapis.com/v0/b/${FIREBASE_STORAGE_BUCKET}/o/${encodeURIComponent(data.name)}?alt=media`;
+  return data.secure_url;
 }
 
 async function storageGet(key) {
@@ -1309,7 +1307,7 @@ document.getElementById('f_image').addEventListener('change', async (e) => {
     document.getElementById('imgPreview').innerHTML = `<img src="${pendingImage}">`;
   } catch (err) {
     document.getElementById('imgPreview').innerHTML = '<span class="placeholder" style="font-size:22px;">📷</span>';
-    showToast("Photo upload failed — check FIREBASE_STORAGE_BUCKET");
+    showToast("Photo upload failed — check CLOUDINARY_CLOUD_NAME and CLOUDINARY_UPLOAD_PRESET");
   }
 });
 
@@ -1398,7 +1396,7 @@ document.getElementById('stickerOverlay').addEventListener('click', (e) => {
 
 // ---------------- Init ----------------
 (async function init() {
-  if (FIREBASE_URL.includes("YOUR-PROJECT-ID") || FIREBASE_STORAGE_BUCKET.includes("YOUR-PROJECT-ID")) {
+  if (FIREBASE_URL.includes("YOUR-PROJECT-ID") || CLOUDINARY_CLOUD_NAME.includes("YOUR-CLOUD-NAME")) {
     document.getElementById('setupBanner').style.display = 'block';
   }
   await loadProducts();
