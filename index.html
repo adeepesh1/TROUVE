@@ -6,7 +6,7 @@
 <title>Trouvé — Catalog</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.6.14/quagga.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.12.3/JsBarcode.all.min.js"></script>
 <style>
   :root {
@@ -1141,34 +1141,51 @@ document.getElementById('receiptOverlay').addEventListener('click', (e) => {
 document.getElementById('printReceiptBtn').addEventListener('click', () => window.print());
 
 // ---------------- Camera barcode scanning ----------------
+let html5QrCode = null;
+
 function openCameraScan(callback) {
   scanCallback = callback;
   document.getElementById('scanOverlay').classList.add('show');
-  if (typeof Quagga === 'undefined') { showToast('Camera scanner unavailable'); closeCameraScan(); return; }
-  Quagga.init({
-    inputStream: {
-      type: "LiveStream",
-      target: document.getElementById('scannerContainer'),
-      constraints: { facingMode: "environment" }
-    },
-    decoder: { readers: ["ean_reader", "ean_8_reader", "code_128_reader", "upc_reader", "upc_e_reader", "codabar_reader"] },
-    locate: true
-  }, function (err) {
-    if (err) { showToast('Camera unavailable — check permissions'); closeCameraScan(); return; }
-    Quagga.start();
+  if (typeof Html5Qrcode === 'undefined') { showToast('Camera scanner unavailable'); closeCameraScan(); return; }
+
+  html5QrCode = new Html5Qrcode('scannerContainer');
+  const config = {
+    fps: 10,
+    qrbox: { width: 260, height: 140 },
+    formatsToSupport: [
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.CODABAR,
+      Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E
+    ]
+  };
+
+  html5QrCode.start(
+    { facingMode: "environment" },
+    config,
+    (decodedText) => onBarcodeDetected(decodedText),
+    () => {} // per-frame "nothing found" — expected constantly while aiming, safe to ignore
+  ).catch(() => {
+    showToast('Camera unavailable — check permissions');
+    closeCameraScan();
   });
-  Quagga.onDetected(onBarcodeDetected);
 }
 
-function onBarcodeDetected(result) {
-  const code = result && result.codeResult ? result.codeResult.code : null;
+function onBarcodeDetected(code) {
   closeCameraScan();
   if (code && scanCallback) scanCallback(code);
 }
 
 function closeCameraScan() {
   document.getElementById('scanOverlay').classList.remove('show');
-  try { Quagga.offDetected(onBarcodeDetected); Quagga.stop(); } catch (e) {}
+  if (html5QrCode) {
+    const instance = html5QrCode;
+    html5QrCode = null;
+    instance.stop().then(() => instance.clear()).catch(() => {});
+  }
 }
 
 document.getElementById('closeScanModal').addEventListener('click', closeCameraScan);
