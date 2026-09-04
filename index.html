@@ -605,7 +605,7 @@
           <div class="form-grid" style="grid-template-columns:repeat(4, 1fr);">
             <div class="field"><label>Columns</label><input type="number" id="sheetCols" value="4" min="1"></div>
             <div class="field"><label>Rows</label><input type="number" id="sheetRows" value="14" min="1"></div>
-            <div class="field"><label>Label width (mm)</label><input type="number" id="labelWidth" value="48.5"></div>
+            <div class="field"><label>Label width (mm)</label><input type="number" id="labelWidth" value="49.5"></div>
             <div class="field"><label>Label height (mm)</label><input type="number" id="labelHeight" value="19.8"></div>
           </div>
           <div class="form-grid" style="grid-template-columns:repeat(2, 1fr); margin-top:0;">
@@ -788,7 +788,7 @@ async function nextProductCode() {
 function renderBarcodePreview(code) {
   if (typeof JsBarcode === 'undefined' || !code) return;
   try {
-    JsBarcode('#barcodePreview', code, { format: 'CODE128', width: 2, height: 46, displayValue: true, fontSize: 13, margin: 6 });
+    JsBarcode('#barcodePreview', code, { format: 'CODE128', width: 2, height: 46, displayValue: true, fontSize: 15, margin: 6 });
   } catch (e) {}
 }
 
@@ -1628,7 +1628,7 @@ function renderStickerSheet() {
   if (typeof JsBarcode !== 'undefined') {
     for (let i = 0; i < copies; i++) {
       try {
-        JsBarcode(area.querySelector('.sticker-barcode-' + i), currentStickerProduct.code, { format: 'CODE128', width: 1.6, height: 36, displayValue: true, fontSize: 10, margin: 4 });
+        JsBarcode(area.querySelector('.sticker-barcode-' + i), currentStickerProduct.code, { format: 'CODE128', width: 1.8, height: 42, displayValue: true, fontSize: 13, margin: 4 });
       } catch (e) {}
     }
   }
@@ -1677,7 +1677,7 @@ function sheetConfig() {
   return {
     cols: Math.max(1, parseInt(document.getElementById('sheetCols').value) || 4),
     rows: Math.max(1, parseInt(document.getElementById('sheetRows').value) || 14),
-    labelWidth: parseFloat(document.getElementById('labelWidth').value) || 48.5,
+    labelWidth: parseFloat(document.getElementById('labelWidth').value) || 49.5,
     labelHeight: parseFloat(document.getElementById('labelHeight').value) || 19.8,
     margin: parseFloat(document.getElementById('sheetMargin').value) || 3.5,
     gap: parseFloat(document.getElementById('sheetGap').value) || 1
@@ -1731,7 +1731,7 @@ document.getElementById('printBulkBtn').addEventListener('click', () => {
   if (typeof JsBarcode !== 'undefined') {
     queue.forEach((p, idx) => {
       try {
-        JsBarcode(area.querySelector('.bulk-barcode-' + idx), p.code, { format: 'CODE128', width: 1.2, height: 22, displayValue: true, fontSize: 7, margin: 2 });
+        JsBarcode(area.querySelector('.bulk-barcode-' + idx), p.code, { format: 'CODE128', width: 1.3, height: 24, displayValue: true, fontSize: 9, margin: 2 });
       } catch (e) {}
     });
   }
