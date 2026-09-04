@@ -306,6 +306,26 @@
   .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--sky); }
   .img-upload-preview { width: 70px; height: 70px; border-radius: 10px; background: #f2ece0; overflow: hidden; display:flex; align-items:center; justify-content:center; margin-top: 8px; }
   .img-upload-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .image-thumb-grid { display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; }
+  .image-thumb { position:relative; width:74px; height:74px; border-radius:10px; overflow:hidden; background:#f2ece0; border:1px solid var(--line); }
+  .image-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+  .image-thumb .remove-img-btn {
+    position:absolute; top:3px; right:3px; width:20px; height:20px; border-radius:50%;
+    background:rgba(33,29,26,0.65); color:white; border:none; font-size:12px; line-height:1;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .image-thumb .primary-tag {
+    position:absolute; bottom:0; left:0; right:0; background:rgba(33,29,26,0.65); color:white;
+    font-size:8px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; text-align:center; padding:2px 0;
+  }
+  .image-thumb-add {
+    width:74px; height:74px; border-radius:10px; border:1px dashed var(--line); background:none;
+    display:flex; align-items:center; justify-content:center; font-size:22px; color:#a89c85; cursor:pointer;
+  }
+  .detail-thumb-row { display:flex; gap:8px; margin-top:10px; }
+  .detail-thumb { width:50px; height:50px; border-radius:8px; overflow:hidden; cursor:pointer; border:2px solid transparent; background:#f2ece0; }
+  .detail-thumb.active { border-color: var(--coral); }
+  .detail-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
 
   .size-check { display:inline-flex; align-items:center; gap:5px; background:white; border:2px solid var(--line); border-radius:999px; padding:6px 12px; font-size:12px; font-weight:600; margin:0; cursor:pointer; }
   .size-check input { margin:0; }
@@ -520,9 +540,9 @@
               </div>
             </div>
           </div>
-          <div class="field"><label>Photo</label>
-            <input type="file" accept="image/*" id="f_image">
-            <div class="img-upload-preview" id="imgPreview"><span class="placeholder" style="font-size:22px;">📷</span></div>
+          <div class="field full"><label>Photos</label>
+            <input type="file" accept="image/*" id="f_image" multiple style="display:none;">
+            <div class="image-thumb-grid" id="imagePreviewRow"></div>
           </div>
           <div class="field full"><label>Description (shown to customers)</label><textarea id="f_desc" placeholder="Soft brushed cotton, easy snap buttons, machine washable."></textarea></div>
         </div>
@@ -589,8 +609,8 @@
             <div class="field"><label>Label height (mm)</label><input type="number" id="labelHeight" value="19.8"></div>
           </div>
           <div class="form-grid" style="grid-template-columns:repeat(2, 1fr); margin-top:0;">
-            <div class="field"><label>Page margin (mm)</label><input type="number" id="sheetMargin" value="8.5"></div>
-            <div class="field"><label>Gap between labels (mm)</label><input type="number" id="sheetGap" value="0"></div>
+            <div class="field"><label>Page margin (mm)</label><input type="number" id="sheetMargin" value="3.5"></div>
+            <div class="field"><label>Gap between labels (mm)</label><input type="number" id="sheetGap" value="1"></div>
           </div>
           <div style="font-size:12px; color:#9c9384; margin-top:6px;">Match these to your label sheet's spec (e.g. 7 × 8 = 56 per sheet). Print a single test sheet first before running a full batch.</div>
         </div>
@@ -683,6 +703,7 @@
     <button class="modal-close" id="closeDetail">✕</button>
     <div class="modal-img" id="detailImgWrap"></div>
     <div class="modal-body">
+      <div class="detail-thumb-row" id="detailThumbRow"></div>
       <div class="display name" id="detailName"></div>
       <div class="price" id="detailPrice"></div>
       <div class="meta-row" id="detailMeta"></div>
@@ -865,6 +886,11 @@ function renderColorChips() {
   });
 }
 
+function primaryImage(p) {
+  if (p.images && p.images.length) return p.images[0];
+  return p.image || null;
+}
+
 function money(n) {
   n = Number(n) || 0;
   return '₹' + (Number.isInteger(n) ? n.toLocaleString('en-IN') : n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d)(?=\.))/g, ','));
@@ -940,7 +966,7 @@ function renderCustomerGrid() {
   grid.innerHTML = filtered.map((p, i) => `
     <div class="card" style="animation-delay:${i * 0.03}s" data-id="${p.id}">
       <div class="card-img-wrap">
-        ${p.image ? `<img src="${p.image}" alt="${p.name}">` : '<span class="placeholder">👕</span>'}
+        ${primaryImage(p) ? `<img src="${primaryImage(p)}" alt="${p.name}">` : '<span class="placeholder">👕</span>'}
         ${p.stock <= 0 ? '<span class="sold-out-tag">Sold out</span>' : ''}
       </div>
       <div class="card-body">
@@ -960,7 +986,28 @@ function renderCustomerGrid() {
 function openDetail(id) {
   const p = products.find(x => x.id === id);
   if (!p) return;
-  document.getElementById('detailImgWrap').innerHTML = p.image ? `<img src="${p.image}" alt="${p.name}">` : '<span class="placeholder" style="font-size:44px;">👕</span>';
+  const images = (p.images && p.images.length) ? p.images : (p.image ? [p.image] : []);
+
+  function showMainImage(idx) {
+    const src = images[idx];
+    document.getElementById('detailImgWrap').innerHTML = src ? `<img src="${src}" alt="${p.name}">` : '<span class="placeholder" style="font-size:44px;">👕</span>';
+    document.querySelectorAll('#detailThumbRow .detail-thumb').forEach((el, i) => el.classList.toggle('active', i === idx));
+  }
+
+  showMainImage(0);
+
+  const thumbRow = document.getElementById('detailThumbRow');
+  if (images.length > 1) {
+    thumbRow.style.display = 'flex';
+    thumbRow.innerHTML = images.map((src, i) => `<div class="detail-thumb ${i === 0 ? 'active' : ''}" data-idx="${i}"><img src="${src}"></div>`).join('');
+    thumbRow.querySelectorAll('.detail-thumb').forEach(el => {
+      el.addEventListener('click', () => showMainImage(parseInt(el.dataset.idx)));
+    });
+  } else {
+    thumbRow.style.display = 'none';
+    thumbRow.innerHTML = '';
+  }
+
   document.getElementById('detailName').textContent = p.name;
   document.getElementById('detailPrice').textContent = money(p.price);
   document.getElementById('detailDesc').textContent = p.description || "";
@@ -1337,7 +1384,7 @@ function renderAdminTable() {
   document.getElementById('adminEmptyState').style.display = products.length ? 'none' : 'block';
   body.innerHTML = products.map(p => `
     <tr>
-      <td class="row-img">${p.image ? `<img src="${p.image}">` : '<div class="placeholder"></div>'}</td>
+      <td class="row-img">${primaryImage(p) ? `<img src="${primaryImage(p)}">` : '<div class="placeholder"></div>'}</td>
       <td>${p.name}<div style="font-size:11px; color:#9c9384; font-family:monospace;">${p.code || ''}</div></td>
       <td>${p.category}</td>
       <td>${money(p.price)}</td>
@@ -1372,8 +1419,8 @@ async function openForm(id) {
     document.getElementById('f_price').value = p.price;
     renderCategorySelect(p.category);
     document.getElementById('f_desc').value = p.description || "";
-    document.getElementById('imgPreview').innerHTML = p.image ? `<img src="${p.image}">` : '<span class="placeholder" style="font-size:22px;">📷</span>';
-    pendingImage = p.image || null;
+    formImages = (p.images && p.images.length) ? [...p.images] : (p.image ? [p.image] : []);
+    renderImagePreviewRow();
     pendingCode = p.code || null;
     formSizes = [...(p.sizes || [])];
     formColors = [...(p.colors || [])];
@@ -1381,8 +1428,8 @@ async function openForm(id) {
   } else {
     ['f_name', 'f_price', 'f_desc'].forEach(id2 => document.getElementById(id2).value = '');
     renderCategorySelect(allCategories()[0]);
-    document.getElementById('imgPreview').innerHTML = '<span class="placeholder" style="font-size:22px;">📷</span>';
-    pendingImage = null;
+    formImages = [];
+    renderImagePreviewRow();
     formSizes = [];
     formColors = [];
     formVariants = {};
@@ -1471,18 +1518,45 @@ document.getElementById('cancelFormBtn').addEventListener('click', () => {
   document.getElementById('productForm').classList.remove('show');
 });
 
-let pendingImage = null;
+let formImages = [];
+
+function renderImagePreviewRow() {
+  const row = document.getElementById('imagePreviewRow');
+  let html = formImages.map((src, i) => `
+    <div class="image-thumb">
+      <img src="${src}">
+      ${i === 0 ? '<div class="primary-tag">Main</div>' : ''}
+      <button type="button" class="remove-img-btn" data-removeimg="${i}">×</button>
+    </div>
+  `).join('');
+  html += `<button type="button" class="image-thumb-add" id="addImageBtn">+</button>`;
+  row.innerHTML = html;
+  row.querySelectorAll('[data-removeimg]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      formImages.splice(btn.dataset.removeimg, 1);
+      renderImagePreviewRow();
+    });
+  });
+  document.getElementById('addImageBtn').addEventListener('click', () => {
+    document.getElementById('f_image').click();
+  });
+}
+
 document.getElementById('f_image').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  document.getElementById('imgPreview').innerHTML = '<span class="placeholder" style="font-size:13px;">Uploading…</span>';
-  try {
-    pendingImage = await uploadImage(file);
-    document.getElementById('imgPreview').innerHTML = `<img src="${pendingImage}">`;
-  } catch (err) {
-    document.getElementById('imgPreview').innerHTML = '<span class="placeholder" style="font-size:22px;">📷</span>';
-    showToast("Photo upload failed — check CLOUDINARY_CLOUD_NAME and CLOUDINARY_UPLOAD_PRESET");
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
+  for (const file of files) {
+    const uploadingRow = document.getElementById('imagePreviewRow');
+    uploadingRow.insertAdjacentHTML('beforeend', '<div class="image-thumb"><span class="placeholder" style="font-size:11px; display:flex; align-items:center; justify-content:center; height:100%;">Uploading…</span></div>');
+    try {
+      const url = await uploadImage(file);
+      formImages.push(url);
+    } catch (err) {
+      showToast("Photo upload failed — check CLOUDINARY_CLOUD_NAME and CLOUDINARY_UPLOAD_PRESET");
+    }
+    renderImagePreviewRow();
   }
+  e.target.value = '';
 });
 
 document.getElementById('saveProductBtn').addEventListener('click', async () => {
@@ -1506,7 +1580,8 @@ document.getElementById('saveProductBtn').addEventListener('click', async () => 
     variants,
     stock,
     description: document.getElementById('f_desc').value.trim(),
-    image: pendingImage
+    images: [...formImages],
+    image: formImages[0] || null
   };
 
   if (editingId) {
@@ -1576,7 +1651,7 @@ function renderBulkBarcodeTable() {
 
   body.innerHTML = products.map(p => `
     <tr>
-      <td class="row-img">${p.image ? `<img src="${p.image}">` : '<div class="placeholder"></div>'}</td>
+      <td class="row-img">${primaryImage(p) ? `<img src="${primaryImage(p)}">` : '<div class="placeholder"></div>'}</td>
       <td>${p.name}</td>
       <td style="font-family:monospace;">${p.code || ''}</td>
       <td>${p.stock}</td>
@@ -1604,8 +1679,8 @@ function sheetConfig() {
     rows: Math.max(1, parseInt(document.getElementById('sheetRows').value) || 14),
     labelWidth: parseFloat(document.getElementById('labelWidth').value) || 48.5,
     labelHeight: parseFloat(document.getElementById('labelHeight').value) || 19.8,
-    margin: parseFloat(document.getElementById('sheetMargin').value) || 8.5,
-    gap: parseFloat(document.getElementById('sheetGap').value) || 0
+    margin: parseFloat(document.getElementById('sheetMargin').value) || 3.5,
+    gap: parseFloat(document.getElementById('sheetGap').value) || 1
   };
 }
 
