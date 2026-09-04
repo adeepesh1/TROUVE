@@ -1392,6 +1392,7 @@ function renderAdminTable() {
       <td>
         <div class="row-actions">
           <button class="btn btn-secondary btn-small" data-barcode="${p.id}">🏷️</button>
+          <button class="btn btn-secondary btn-small" data-duplicate="${p.id}">⎘</button>
           <button class="btn btn-secondary btn-small" data-edit="${p.id}">Edit</button>
           <button class="btn btn-danger btn-small" data-del="${p.id}">Delete</button>
         </div>
@@ -1401,6 +1402,7 @@ function renderAdminTable() {
 
   body.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => openForm(btn.dataset.edit)));
   body.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', () => deleteProduct(btn.dataset.del)));
+  body.querySelectorAll('[data-duplicate]').forEach(btn => btn.addEventListener('click', () => duplicateProduct(btn.dataset.duplicate)));
   body.querySelectorAll('[data-barcode]').forEach(btn => btn.addEventListener('click', () => {
     const p = products.find(x => x.id === btn.dataset.barcode);
     if (p) openStickerModal(p);
@@ -1448,6 +1450,31 @@ async function openForm(id) {
   renderSizeChipsSelected();
   renderColorChips();
   renderStockGrid();
+}
+
+async function duplicateProduct(id) {
+  const src = products.find(x => x.id === id);
+  if (!src) return;
+
+  await openForm(null); // resets the form and generates a fresh product code
+
+  document.getElementById('f_name').value = src.name;
+  document.getElementById('f_price').value = src.price;
+  renderCategorySelect(src.category);
+  document.getElementById('f_desc').value = src.description || '';
+
+  formImages = (src.images && src.images.length) ? [...src.images] : (src.image ? [src.image] : []);
+  renderImagePreviewRow();
+
+  formSizes = [...(src.sizes || [])];
+  formColors = [...(src.colors || [])];
+  formVariants = {}; // start stock at 0 — this is a fresh batch, not the same physical units
+  renderSizeCheckboxes();
+  renderSizeChipsSelected();
+  renderColorChips();
+  renderStockGrid();
+
+  showToast('Duplicated — set stock for this batch, then save');
 }
 
 let categorySelectPrevValue = null;
