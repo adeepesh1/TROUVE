@@ -735,8 +735,28 @@ const FIREBASE_URL = "https://trouve-535fb-default-rtdb.firebaseio.com";
 const CLOUDINARY_CLOUD_NAME = "etltq4mi";
 const CLOUDINARY_UPLOAD_PRESET = "Trouve";
 
+// Downscale big phone photos (max 1600px, JPEG 85%) before upload to save storage and bandwidth.
+async function shrinkImage(file) {
+  try {
+    if (!file.type || !file.type.startsWith('image/') || file.type === 'image/gif') return file;
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const MAX = 1600;
+    const scale = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
+    if (scale === 1 && file.size < 600 * 1024) return file;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bmp.width * scale);
+    canvas.height = Math.round(bmp.height * scale);
+    canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.85));
+    return (blob && blob.size < file.size) ? blob : file;
+  } catch (e) {
+    return file; // fall back to the original if anything goes wrong
+  }
+}
+
 async function uploadImage(file) {
   const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
+  file = await shrinkImage(file);
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
@@ -886,6 +906,16 @@ function renderColorChips() {
   });
 }
 
+// Cloudinary delivers a resized, compressed copy (auto format/quality) instead of the full original.
+// Stored URLs are untouched; only what the browser requests changes.
+function imgUrl(url, w) {
+  if (!url || typeof url !== 'string') return url;
+  const m = url.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.+)$/);
+  if (!m) return url;
+  if (/^(?:[a-z]{1,3}_[^/,]+,?)+\//.test(m[2])) return url; // already has a transformation
+  return m[1] + 'f_auto,q_auto,c_limit,w_' + w + '/' + m[2];
+}
+
 function primaryImage(p) {
   if (p.images && p.images.length) return p.images[0];
   return p.image || null;
@@ -966,7 +996,7 @@ function renderCustomerGrid() {
   grid.innerHTML = filtered.map((p, i) => `
     <div class="card" style="animation-delay:${i * 0.03}s" data-id="${p.id}">
       <div class="card-img-wrap">
-        ${primaryImage(p) ? `<img src="${primaryImage(p)}" alt="${p.name}">` : '<span class="placeholder">👕</span>'}
+        ${primaryImage(p) ? `<img src="${imgUrl(primaryImage(p), 500)}" alt="${p.name}" loading="lazy" decoding="async">` : '<span class="placeholder">👕</span>'}
         ${p.stock <= 0 ? '<span class="sold-out-tag">Sold out</span>' : ''}
       </div>
       <div class="card-body">
@@ -990,7 +1020,7 @@ function openDetail(id) {
 
   function showMainImage(idx) {
     const src = images[idx];
-    document.getElementById('detailImgWrap').innerHTML = src ? `<img src="${src}" alt="${p.name}">` : '<span class="placeholder" style="font-size:44px;">👕</span>';
+    document.getElementById('detailImgWrap').innerHTML = src ? `<img src="${imgUrl(src, 900)}" alt="${p.name}">` : '<span class="placeholder" style="font-size:44px;">👕</span>';
     document.querySelectorAll('#detailThumbRow .detail-thumb').forEach((el, i) => el.classList.toggle('active', i === idx));
   }
 
@@ -999,7 +1029,7 @@ function openDetail(id) {
   const thumbRow = document.getElementById('detailThumbRow');
   if (images.length > 1) {
     thumbRow.style.display = 'flex';
-    thumbRow.innerHTML = images.map((src, i) => `<div class="detail-thumb ${i === 0 ? 'active' : ''}" data-idx="${i}"><img src="${src}"></div>`).join('');
+    thumbRow.innerHTML = images.map((src, i) => `<div class="detail-thumb ${i === 0 ? 'active' : ''}" data-idx="${i}"><img src="${imgUrl(src, 120)}" loading="lazy"></div>`).join('');
     thumbRow.querySelectorAll('.detail-thumb').forEach(el => {
       el.addEventListener('click', () => showMainImage(parseInt(el.dataset.idx)));
     });
@@ -1384,7 +1414,7 @@ function renderAdminTable() {
   document.getElementById('adminEmptyState').style.display = products.length ? 'none' : 'block';
   body.innerHTML = products.map(p => `
     <tr>
-      <td class="row-img">${primaryImage(p) ? `<img src="${primaryImage(p)}">` : '<div class="placeholder"></div>'}</td>
+      <td class="row-img">${primaryImage(p) ? `<img src="${imgUrl(primaryImage(p), 120)}" loading="lazy" decoding="async">` : '<div class="placeholder"></div>'}</td>
       <td>${p.name}<div style="font-size:11px; color:#9c9384; font-family:monospace;">${p.code || ''}</div></td>
       <td>${p.category}</td>
       <td>${money(p.price)}</td>
@@ -1551,7 +1581,7 @@ function renderImagePreviewRow() {
   const row = document.getElementById('imagePreviewRow');
   let html = formImages.map((src, i) => `
     <div class="image-thumb">
-      <img src="${src}">
+      <img src="${imgUrl(src, 160)}">
       ${i === 0 ? '<div class="primary-tag">Main</div>' : ''}
       <button type="button" class="remove-img-btn" data-removeimg="${i}">×</button>
     </div>
@@ -1678,7 +1708,7 @@ function renderBulkBarcodeTable() {
 
   body.innerHTML = products.map(p => `
     <tr>
-      <td class="row-img">${primaryImage(p) ? `<img src="${primaryImage(p)}">` : '<div class="placeholder"></div>'}</td>
+      <td class="row-img">${primaryImage(p) ? `<img src="${imgUrl(primaryImage(p), 120)}" loading="lazy" decoding="async">` : '<div class="placeholder"></div>'}</td>
       <td>${p.name}</td>
       <td style="font-family:monospace;">${p.code || ''}</td>
       <td>${p.stock}</td>
